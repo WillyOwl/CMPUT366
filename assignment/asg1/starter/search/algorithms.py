@@ -103,3 +103,164 @@ class State:
         """
         self._cost = cost
     
+class Dijkstra:
+    """Dijkstra's Algorithm Implementation"""
+
+    def __init__ (self, gridded_map):
+        self.map = gridded_map
+        self.closed_data = [] # closed_data will be used in the prepared function calls in main.py later
+
+    def search(self, start, goal):
+        """
+        The process of searching using Dijkstra.
+
+        Return: A tuple (path, cost, expanded_dijkstra)
+        """
+
+        open_list = []
+        closed_list = set()
+        expanded_dijkstra = 0
+        self.closed_data = {}  # Store as instance variable for plotting
+        
+        g_values = {}
+
+        start.set_g(0)
+        start.set_cost(0) # cost = g-value
+        start.set_parent(None)
+        g_values[start.state_hash()] = 0
+
+        heapq.heappush(open_list, start)
+
+        while open_list:
+            current = heapq.heappop(open_list)
+
+            if current.state_hash() in closed_list:
+                continue
+
+            if current.get_g() > g_values.get(current.state_hash(), float('inf')):
+                continue
+
+            closed_list.add(current.state_hash())
+            self.closed_data[current.state_hash()] = current
+            expanded_dijkstra += 1
+
+            if current == goal:
+                # If the goal is reached
+
+                path = []
+                node = current
+
+                while node is not None:
+                    path.append(node)
+                    node = node.get_parent()
+
+                path.reverse()
+
+                return path, current.get_g(), expanded_dijkstra
+            
+            successors = self.map.successors(current)
+
+            for successor in successors:
+                if successor.state_hash() in closed_list:
+                    continue
+
+                if successor.get_g() < g_values.get(successor.state_hash(), float('inf')):
+                    g_values[successor.state_hash()] = successor.get_g()
+                    successor.set_parent(current)
+                    successor.set_cost(successor.get_g())  # For Dijkstra, cost = g-value
+
+                    heapq.heappush(open_list, successor)
+
+        # No path found
+
+        return None, -1.0, expanded_dijkstra
+    
+    def get_closed_data(self):
+
+        return self.closed_data
+    
+class AStar:
+    """A* algorithm implementation"""
+
+    def __init__ (self, gridded_map):
+        self.map = gridded_map
+        self.closed_data = [] # closed_data will be used in the prepared function calls in main.py later
+
+    def heuristic(self, state, goal):
+        dx = abs(state.get_x() - goal.get_x())
+        dy = abs(state.get_y() - goal.get_y())
+
+        if dx > dy:
+            return dy * 1.5 + (dx - dy) * 1.0
+        
+        else:
+            return dx * 1.5 + (dy - dx) * 1.0
+    
+    def search(self, start, goal):
+        """
+        The process of searching using A*.
+
+        Return: A tuple (path, cost, expanded_nodes)
+        """
+
+        open_list = []
+        closed_list = set()
+        expanded_dijkstra = 0
+        self.closed_data = {}
+        
+        g_values = {}
+
+        start.set_g(0)
+        h = self.heuristic(start, goal)
+        start.set_cost(start.get_g() + h)
+        start.set_parent(None)
+        g_values[start.state_hash()] = 0
+
+        heapq.heappush(open_list, start)
+
+        while open_list:
+            current = heapq.heappop(open_list)
+
+            if current.state_hash() in closed_list:
+                continue
+
+            if current.get_g() > g_values.get(current.state_hash(), float('inf')):
+                continue
+
+            closed_list.add(current.state_hash())
+            self.closed_data[current.state_hash()] = current
+            expanded_dijkstra += 1
+
+            if current == goal:
+                # If the goal is reached
+
+                path = []
+                node = current
+
+                while node is not None:
+                    path.append(node)
+                    node = node.get_parent()
+
+                path.reverse()
+
+                return path, current.get_g(), expanded_dijkstra
+            
+            successors = self.map.successors(current)
+
+            for successor in successors:
+                # Only add to open list if we found a better path
+                if successor.get_g() < g_values.get(successor.state_hash(), float('inf')):
+                    g_values[successor.state_hash()] = successor.get_g()
+                    successor.set_parent(current)
+                    h = self.heuristic(successor, goal)
+                    successor.set_cost(successor.get_g() + h)  
+
+                    heapq.heappush(open_list, successor)
+
+        # If no path found
+
+        return None, -1.0, expanded_dijkstra
+    
+    def get_closed_data(self):
+
+        return self.closed_data
