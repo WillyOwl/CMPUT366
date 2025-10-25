@@ -139,20 +139,96 @@ class CBSState:
         """
         Computes the cost of a CBS state. Assumes the sum of the cost of the paths as the objective function.
         """
-        pass
+        # Create an A* instance for this map
+        astar = AStar(self._map)
+        
+        # Initialize total cost
+        total_cost = 0
+        
+        # For each agent, compute their optimal path using A*
+        for i in range(self._k):
+           start_state = self._starts[i]
+           goal_state = self._goals[i]
+
+           cost, path = astar.search(start_state, goal_state, self._constraints[i])
+
+           self._paths[i] = path
+           
+           total_cost += cost
+       
+        # Set the total cost for this CBS state
+        self._cost = total_cost
     
     def is_solution(self):
         """
-        Verifies whether a CBS state is a solution. If it isn't, it returns False and a tuple with 
-        the conflicting state and time step; returns True, None otherwise. 
+        Verifies whether a CBS state is a solution. If it isn't, it returns False and a tuple with
+        the conflicting state and time step; returns True, None otherwise.
         """
-        pass
+        # First, ensure we have computed paths for all agents
+        if not self._paths:
+            self.compute_cost()
+        
+        # Check for conflicts between agents
+        # We need to check if two agents are at the same position at the same time
+        # We'll use a dictionary to track (position, time) pairs and which agents occupy them
+        position_time_agents = {}
+        
+        for agent_id, path in self._paths.items():
+            for time_step, state in enumerate(path):
+                position = (state.get_x(), state.get_y())
+                
+                # Create a key for the position and time
+                pos_time_key = (position, time_step)
+                
+                # If this position at this time is already occupied by another agent, we have a conflict
+                if pos_time_key in position_time_agents:
+                    # Found a conflict
+                    conflicting_state = state
+                    return False, (conflicting_state, time_step)
+                
+                # Mark this position at this time as occupied by this agent
+                position_time_agents[pos_time_key] = agent_id
+        
+        # No conflicts found
+        return True, None
 
     def successors(self):
         """
         Generates the two children of a CBS state that doesn't represent a solution.
+        Each child adds a constraint for one of the conflicting agents.
         """
-        pass
+        # First, check if we have a conflict
+        is_solution, conflict_info = self.is_solution()
+        if is_solution:
+            return []  # No successors if it's already a solution
+        
+        conflict_state, conflict_time = conflict_info
+        conflict_position = (conflict_state.get_x(), conflict_state.get_y())
+        
+        # Find which agents are in conflict at this position and time
+        conflicting_agents = []
+        for agent_id, path in self._paths.items():
+            for time_step, state in enumerate(path):
+                if time_step == conflict_time and (state.get_x(), state.get_y()) == conflict_position:
+                    conflicting_agents.append(agent_id)
+                    break
+        
+        # Generate successor states by constraining each conflicting agent
+        successors = []
+        for agent_id in conflicting_agents:
+            # Create a new CBS state by deep copying the current one
+            new_state = CBSState(self._map, self._starts, self._goals)
+            new_state._constraints = copy.deepcopy(self._constraints)
+            
+            # Add the constraint for the conflicting agent at the conflicting position and time
+            new_state.set_constraint(conflict_state, conflict_time, agent_id)
+            
+            # Compute the cost for the new state
+            new_state.compute_cost()
+            
+            successors.append(new_state)
+        
+        return successors
 
     def set_constraint(self, conflict_state, conflict_time, agent):
         """
@@ -186,6 +262,35 @@ class CBS():
         """
         Performs CBS search for the problem defined in start.
         """
+        # Initialize the OPEN list with the root node
+        OPEN = []
+        
+        # Compute the initial cost and paths for the root node
+        start.compute_cost()
+        
+        # Add the root node to the OPEN list
+        heapq.heappush(OPEN, start)
+        
+        # Best-first search loop
+        while len(OPEN) > 0:
+            # Get the node with the lowest cost
+            current = heapq.heappop(OPEN)
+            
+            # Check if the current node is a solution
+            is_solution, conflict_info = current.is_solution()
+            
+            # If it's a solution, return the paths and cost
+            if is_solution:
+                return current._paths, current._cost
+            
+            # If not a solution, generate successors
+            successors = current.successors()
+            
+            # Add all successors to the OPEN list
+            for successor in successors:
+                heapq.heappush(OPEN, successor)
+        
+        # If no solution is found
         return None, None
         
 class AStar():
